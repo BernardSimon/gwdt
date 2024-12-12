@@ -138,7 +138,7 @@ func (c Response) GetByte() []byte {
 func (c Response) Get(key string) string {
 	return gjson.Get(c.Data, key).String()
 }
-func (c Response) HaveMore() bool {
+func (c Response) HasMore() bool {
 	if c.Request.Pager == nil || !c.Request.Pager.CalcTotal {
 		return false
 	}
