@@ -1,4 +1,4 @@
-package utils
+package gwdtUtils
 
 import (
 	"crypto/md5"
