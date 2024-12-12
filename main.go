@@ -1,8 +1,8 @@
 package main
 
 import (
-	"gwdt/src/client"
-	"gwdt/src/config"
+	"github.com/BernardSimon/gwdt/src/client"
+	"github.com/BernardSimon/gwdt/src/config"
 )
 
 type GwdtConfig = config.GwdtConfig

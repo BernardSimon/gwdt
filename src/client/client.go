@@ -3,10 +3,10 @@ package client
 import (
 	"encoding/json"
 	"errors"
+	"github.com/BernardSimon/gwdt/src/config"
+	"github.com/BernardSimon/gwdt/utils"
 	"github.com/levigross/grequests"
 	"github.com/tidwall/gjson"
-	"gwdt/src/config"
-	"gwdt/utils"
 	"sort"
 	"time"
 )
