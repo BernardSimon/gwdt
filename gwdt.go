@@ -52,7 +52,7 @@ func (c Client) getSign(timestamp int64, dataWrapper []byte, pager *Pager, metho
 	}
 	signFormat += secret
 	sign := gwdtUtils.MD5(signFormat)
-	params["signFormat"] = sign
+	params["sign"] = sign
 	return sign, params, nil
 }
 
