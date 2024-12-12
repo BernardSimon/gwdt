@@ -84,7 +84,7 @@ func (c Client) Call(request *Request) *Response {
 		res.Status = 0
 		res.Data = gjson.Get(resp.String(), "data").String()
 		if request.Pager != nil && request.Pager.CalcTotal {
-			res.TotalCount = gjson.Get(resp.String(), "total_count").Int()
+			res.TotalCount = gjson.Get(res.Data, "total_count").Int()
 		} else {
 			res.TotalCount = 0
 		}
