@@ -142,7 +142,7 @@ func (c Response) HasMore() bool {
 	if c.Request.Pager == nil || !c.Request.Pager.CalcTotal {
 		return false
 	}
-	return c.TotalCount > int64(c.Request.Pager.PageNo*c.Request.Pager.PageSize)
+	return c.TotalCount > int64((c.Request.Pager.PageNo+1)*c.Request.Pager.PageSize)
 }
 
 func NewGwdtClient(config Config) *Client {
