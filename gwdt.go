@@ -3,6 +3,7 @@ package gwdt
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/BernardSimon/gwdt/gwdtUtils"
 	"github.com/levigross/grequests"
 	"github.com/tidwall/gjson"
@@ -251,8 +252,7 @@ func (c QimenClient) getSign(timestamp string, dataWrapper []byte, pager *Pager,
 		} else {
 			params["calc_total"] = "0"
 		}
-		params["page_no"] = strconv.Itoa(pager.PageNo)
-		params["page_size"] = strconv.Itoa(pager.PageSize)
+		params["pager"] = fmt.Sprintf(`{"page_no":%d,"page_size":%d}`, pager.PageNo, pager.PageSize)
 	}
 	keys := make([]string, 0, len(params))
 	for k := range params {
@@ -276,7 +276,7 @@ func (c QimenClient) getWdtSign(datetime string, dataWrapper []byte, pager *Page
 	if err != nil {
 		return "", err
 	}
-	param := map[string]string{
+	params := map[string]string{
 		"method":           method,
 		"datetime":         datetime,
 		"params":           string(dataWrapper),
@@ -286,21 +286,21 @@ func (c QimenClient) getWdtSign(datetime string, dataWrapper []byte, pager *Page
 	}
 	if pager != nil {
 		if pager.CalcTotal {
-			param["calc_total"] = "1"
+			params["calc_total"] = "1"
 		} else {
-			param["calc_total"] = "0"
+			params["calc_total"] = "0"
 		}
-		param["page_no"] = strconv.Itoa(pager.PageNo)
-		param["page_size"] = strconv.Itoa(pager.PageSize)
+		params["pager"] = fmt.Sprintf(`{"page_no":%d,"page_size":%d}`, pager.PageNo, pager.PageSize)
+
 	}
-	keys := make([]string, 0, len(param))
-	for k := range param {
+	keys := make([]string, 0, len(params))
+	for k := range params {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	connString := wdtSecret
 	for _, k := range keys {
-		connString += k + param[k]
+		connString += k + params[k]
 	}
 	connString += wdtSecret
 	return gwdtUtils.MD5(connString), nil
