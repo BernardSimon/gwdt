@@ -57,22 +57,27 @@ func (c Client) getSign(timestamp int64, dataWrapper []byte, pager *Pager, metho
 }
 
 func (c Client) Call(request *Request) *Response {
-	var res Response
-	res.Request = request
-	timestamp := time.Now().Unix() - 1325347200
+	res := Response{
+		Request:   request,
+		Status:    -1,
+		Timestamp: time.Now().Unix() - 1325347200,
+	}
 	dataWrapper, err := json.Marshal([]interface{}{request.Params})
 	if err != nil {
 		res.Error = err
 		return &res
 	}
 	var params map[string]string
-	res.Sign, params, res.Error = c.getSign(timestamp, dataWrapper, request.Pager, request.Method)
+	res.Sign, params, res.Error = c.getSign(res.Timestamp, dataWrapper, request.Pager, request.Method)
 	if res.Error != nil {
 		return &res
 	}
 	resp, err := grequests.Post(c.Config.Url, &grequests.RequestOptions{JSON: dataWrapper, Params: params})
-	if err != nil && resp == nil {
+	if err != nil {
 		res.Error = err
+		return &res
+	} else if resp == nil {
+		res.Error = errors.New("invalid response")
 		return &res
 	} else {
 		status := gjson.Get(resp.String(), "status")
