@@ -198,6 +198,7 @@ type QimenClient struct {
 type QimenRequest = Request
 
 type QimenError struct {
+	Flag         string
 	RequestId    string
 	Code         string
 	Message      string
@@ -346,24 +347,25 @@ func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
 		return &res
 	}
 
-	status := gjson.Get(resp.String(), "status")
-	if status.Int() != 0 {
-		res.Status = status.Int()
+	flag := gjson.Get(resp.String(), "response.flag").String()
+	if flag == "failure" {
+		res.Status = 1
 		res.Error = &QimenError{
-			RequestId:    gjson.Get(resp.String(), "request_id").String(),
-			Code:         gjson.Get(resp.String(), "code").String(),
-			Message:      gjson.Get(resp.String(), "message").String(),
-			SubCode:      gjson.Get(resp.String(), "sub_code").String(),
-			SubMsg:       gjson.Get(resp.String(), "sub_msg").String(),
+			Flag:         flag,
+			RequestId:    gjson.Get(resp.String(), "response.request_id").String(),
+			Code:         gjson.Get(resp.String(), "response.code").String(),
+			Message:      gjson.Get(resp.String(), "response.message").String(),
+			SubCode:      gjson.Get(resp.String(), "response.sub_code").String(),
+			SubMsg:       gjson.Get(resp.String(), "response.sub_msg").String(),
 			RequestError: nil,
 		}
 		return &res
 	}
 	res.Status = 0
-	res.Data = gjson.Get(resp.String(), "data").String()
+	res.Data = gjson.Get(resp.String(), "response.data").String()
 	if request.Pager != nil {
 		if request.Pager.CalcTotal {
-			res.TotalCount = gjson.Get(res.Data, "total_count").Int()
+			res.TotalCount = gjson.Get(res.Data, "response.total_count").Int()
 		}
 	} else {
 		res.TotalCount = 0
