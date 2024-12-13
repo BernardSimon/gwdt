@@ -267,7 +267,6 @@ func (c QimenClient) getSign(timestamp string, dataWrapper []byte, pager *Pager,
 	connString += c.Config.QimenAppSecret
 	sign := strings.ToUpper(gwdtUtils.MD5(connString))
 	params["sign"] = sign
-	delete(params, "params")
 	return sign, wdtSign, params, nil
 }
 
@@ -331,7 +330,7 @@ func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
 		return &res
 	}
 
-	resp, err := grequests.Post(c.Config.QimenUrl, &grequests.RequestOptions{Params: params, JSON: dataWrapper})
+	resp, err := grequests.Get(c.Config.QimenUrl, &grequests.RequestOptions{Params: params})
 	if err != nil {
 		res.Error = &QimenError{
 			RequestError: err,
