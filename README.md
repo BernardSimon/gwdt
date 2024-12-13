@@ -68,3 +68,4 @@
 	println(qimenResponse.Data)
     请参考QimenError类型，分析请求错误
 #### 奇门接口官方文档地址：https://open.wangdian.cn/qjb/open/guide?path=qjb_guide_qm_customize
+#### 本代码问题可以联系: bernardziyi@gmail.com
