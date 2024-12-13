@@ -63,6 +63,9 @@ func (c Client) Call(request *Request) *Response {
 		Timestamp: time.Now().Unix() - 1325347200,
 	}
 	dataWrapper, err := json.Marshal([]interface{}{request.Params})
+	if request.Params == nil {
+		dataWrapper = []byte("[{}]")
+	}
 	if err != nil {
 		res.Error = &WdtError{
 			RequestError: err,
@@ -262,7 +265,7 @@ func (c QimenClient) getSign(timestamp string, dataWrapper []byte, pager *Pager,
 		connString += k + value
 	}
 	connString += c.Config.QimenAppSecret
-	sign := gwdtUtils.MD5(connString)
+	sign := strings.ToUpper(gwdtUtils.MD5(connString))
 	params["sign"] = sign
 	delete(params, "params")
 	return sign, wdtSign, params, nil
@@ -309,6 +312,9 @@ func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
 		DateTime: time.Now().Format("2006-01-02 15:04:05"),
 	}
 	dataWrapper, err := json.Marshal([]interface{}{request.Params})
+	if request.Params == nil {
+		dataWrapper = []byte("[{}]")
+	}
 	if err != nil {
 		res.Error = &QimenError{
 			Message:      "Failed to marshal params",
