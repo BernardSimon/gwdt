@@ -243,6 +243,19 @@ type QimenResponse struct {
 	TotalCount int64
 }
 
+func (c QimenResponse) GetByte() []byte {
+	return []byte(c.Data)
+}
+func (c QimenResponse) Get(key string) string {
+	return gjson.Get(c.Data, key).String()
+}
+func (c QimenResponse) HasMore() bool {
+	if c.Request.Pager == nil || !c.Request.Pager.CalcTotal {
+		return false
+	}
+	return c.TotalCount > int64((c.Request.Pager.PageNo)*c.Request.Pager.PageSize)
+}
+
 func (c QimenClient) getSign(timestamp string, dataWrapper []byte, pager *Pager, method string) (string, string, map[string]string, error) {
 	_, wdtSalt, err := c.Config.GetSecret()
 	if err != nil {

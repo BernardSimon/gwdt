@@ -3,8 +3,9 @@
 本SDK非官方SDK，为方便使用Go语言的开发者，按照旺店通官方文档，封装了签名及调用方法，使用本SDK可以根据业务需求直接调用相关方法。
 请注意：调用旺店通API需要提前在旺店通开放平台申请API权限。
 
-## 1.安装方法：go get github.com/BernardSimon/gwdt
-## 2.参考示例代码
+## 1.安装方法：
+### go get github.com/BernardSimon/gwdt@latest
+## 2.旺店通直连参考示例代码
     // 实例化一个客户端
 	wdtClient := gwdt.NewGwdtClient(gwdt.Config{
 		Url:       "http://wdt.wangdian.cn/openapi",
@@ -23,7 +24,7 @@
 			CalcTotal:   true,
 		},
 	}
-	//调用call方法，得到一个Response实例
+	//调用Call方法，得到一个Response实例
 	response := wdtClient.Call(&request)
     //处理返回结果，判断错误在前
 	if response.Error != nil {
@@ -38,3 +39,32 @@
     4.请求的总条数 Response.TotalCount，请注意只有当分页请求且CalcTotal为true时，才返回该值
     5.GetByte方法，将返回结果转换为[]byte
     6.HasMore方法，判断是否还有更多数据
+    请参考WdtError分析请求错误，其中Message为借口返回错误，RequestError为调用错误
+## 2.奇门自定义参考示例代码
+    // 实例化一个奇门客户端
+	qimenClient := gwdt.NewGwdtQimenClient(gwdt.QimenConfig{
+		QimenUrl:       "", //填入奇门地址
+		QimenAppKey:    "", //填入你的奇门appkey，建议使用环境变量
+		QimenAppSecret: "", //填入你的奇门appSecret，注意需要包含salt，建议使用环境变量
+		Sid:            "", //填入你的卖家账号
+		WdtAppKey:      "", //填入你的旺店通appkey，建议使用环境变量
+		WdtAppSecret:   "", //填入你的旺店通appSecret，注意需要包含salt，建议使用环境变量
+		TargetAppkey:   "", //填入旺店通目标appkey，建议使用环境变量
+	})
+	qimenRequest := gwdt.QimenRequest{
+		Method: "wdt.goods.apigoods.search",
+		Pager: &gwdt.Pager{
+			PageSize:  100,
+			PageNo:    1, //请注意奇门接口的页码是从1开始
+			CalcTotal: true,
+		},
+		Params: nil,
+	}
+    // 调用Call方法，得到一个Response实例
+	qimenResponse := qimenClient.Call(&qimenRequest)
+	if qimenResponse.Error != nil {
+		panic(qimenResponse.Error)
+	}
+	println(qimenResponse.Data)
+    请参考QimenError类型，分析请求错误
+#### 奇门接口官方文档地址：https://open.wangdian.cn/qjb/open/guide?path=qjb_guide_qm_customize
