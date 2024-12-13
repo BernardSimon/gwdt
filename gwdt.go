@@ -385,7 +385,7 @@ func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
 			Code:         gjson.Get(resp.String(), "response.code").String(),
 			Message:      gjson.Get(resp.String(), "response.message").String(),
 			SubCode:      gjson.Get(resp.String(), "response.sub_code").String(),
-			SubMsg:       gjson.Get(resp.String(), "response.sub_msg").String(),
+			SubMsg:       gjson.Get(resp.String(), "response.sub_message").String(),
 			RequestError: nil,
 		}
 		return &res
