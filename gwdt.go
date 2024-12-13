@@ -201,6 +201,27 @@ type QimenClient struct {
 
 type QimenRequest = Request
 
+func (c QimenRequest) GetSortedParams() ([]byte, error) {
+	// 提取所有键
+	keys := make([]string, 0, len(c.Params))
+	for k := range c.Params {
+		keys = append(keys, k)
+	}
+	// 对键进行排序
+	sort.Strings(keys)
+	// 按照排序后的键遍历 map
+	sortedParams := make(map[string]interface{})
+	for _, k := range keys {
+		sortedParams[k] = c.Params[k]
+	}
+	// 将排序后的 map 序列化为 JSON 字符串
+	jsonData, err := json.Marshal(sortedParams)
+	if err != nil {
+		return []byte(""), err
+	}
+	return jsonData, nil
+}
+
 type QimenError struct {
 	Flag         string
 	RequestId    string
@@ -310,16 +331,19 @@ func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
 		Request:  request,
 		DateTime: time.Now().Format("2006-01-02 15:04:05"),
 	}
-	dataWrapper, err := json.Marshal([]interface{}{request.Params})
+	var err error
+	var dataWrapper []byte
 	if request.Params == nil {
-		dataWrapper = []byte("[{}]")
-	}
-	if err != nil {
-		res.Error = &QimenError{
-			Message:      "Failed to marshal params",
-			RequestError: err,
+		dataWrapper = []byte("{}")
+	} else {
+		dataWrapper, err = request.GetSortedParams()
+		if err != nil {
+			res.Error = &QimenError{
+				Message:      "Failed to marshal params",
+				RequestError: err,
+			}
+			return &res
 		}
-		return &res
 	}
 	var params map[string]string
 	res.Sign, res.WdtSign, params, err = c.getSign(res.DateTime, dataWrapper, request.Pager, request.Method)
