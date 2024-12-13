@@ -7,6 +7,7 @@ import (
 	"github.com/levigross/grequests"
 	"github.com/tidwall/gjson"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -20,39 +21,38 @@ func (c Client) getSign(timestamp int64, dataWrapper []byte, pager *Pager, metho
 	if err != nil {
 		return "", nil, err
 	}
-	var signParams = map[string]interface{}{
+	var params = map[string]string{
 		"sid":       c.Config.Sid,
 		"key":       c.Config.AppKey,
 		"v":         c.Config.V,
 		"method":    method,
 		"salt":      salt,
-		"timestamp": timestamp,
-		"body":      dataWrapper,
+		"timestamp": strconv.FormatInt(timestamp, 10),
+		"body":      string(dataWrapper),
 	}
 	if pager != nil {
-		calcTotal := 0
 		if pager.CalcTotal {
-			calcTotal = 1
+			params["calc_total"] = "1"
+		} else {
+			params["calc_total"] = "0"
 		}
-		signParams["page_size"] = pager.PageSize
-		signParams["page_no"] = pager.PageNo
-		signParams["calc_total"] = calcTotal
+		params["page_size"] = strconv.Itoa(pager.PageSize)
+		params["page_no"] = strconv.Itoa(pager.PageNo)
 	}
-	keys := make([]string, 0, len(signParams))
-	for k := range signParams {
+	keys := make([]string, 0, len(params))
+	for k := range params {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	signFormat := secret
-	params := make(map[string]string)
+	signConn := secret
 	for _, k := range keys {
-		value := gwdtUtils.ToString(signParams[k])
-		signFormat += k + value
-		params[k] = value
+		value := params[k]
+		signConn += k + value
 	}
-	signFormat += secret
-	sign := gwdtUtils.MD5(signFormat)
+	signConn += secret
+	sign := gwdtUtils.MD5(signConn)
 	params["sign"] = sign
+	delete(params, "body")
 	return sign, params, nil
 }
 
@@ -64,26 +64,37 @@ func (c Client) Call(request *Request) *Response {
 	}
 	dataWrapper, err := json.Marshal([]interface{}{request.Params})
 	if err != nil {
-		res.Error = err
+		res.Error = &WdtError{
+			RequestError: err,
+		}
 		return &res
 	}
 	var params map[string]string
-	res.Sign, params, res.Error = c.getSign(res.Timestamp, dataWrapper, request.Pager, request.Method)
-	if res.Error != nil {
+	res.Sign, params, err = c.getSign(res.Timestamp, dataWrapper, request.Pager, request.Method)
+	if err != nil {
+		res.Error = &WdtError{
+			RequestError: err,
+		}
 		return &res
 	}
 	resp, err := grequests.Post(c.Config.Url, &grequests.RequestOptions{JSON: dataWrapper, Params: params})
 	if err != nil {
-		res.Error = err
+		res.Error = &WdtError{
+			RequestError: err,
+		}
 		return &res
 	} else if resp == nil {
-		res.Error = errors.New("invalid response")
+		res.Error = &WdtError{
+			RequestError: errors.New("request failed"),
+		}
 		return &res
 	} else {
 		status := gjson.Get(resp.String(), "status")
 		if status.Int() != 0 {
-			res.Status = int(status.Int())
-			res.Error = errors.New(gjson.Get(resp.String(), "message").String())
+			res.Status = status.Int()
+			res.Error = &WdtError{
+				Message: gjson.Get(resp.String(), "message").String(),
+			}
 			return &res
 		}
 		res.Status = 0
@@ -126,11 +137,14 @@ type Request struct {
 	Params map[string]interface{}
 	Pager  *Pager
 }
-
+type WdtError struct {
+	Message      string `json:"Message"`
+	RequestError error  `json:"request_error"`
+}
 type Response struct {
 	Request    *Request
-	Status     int
-	Error      error
+	Status     int64
+	Error      *WdtError
 	Timestamp  int64  // 按照旺店通规则的请求时间戳
 	Sign       string // 按照旺店通规则的签名
 	Data       string
@@ -152,4 +166,207 @@ func (c Response) HasMore() bool {
 
 func NewGwdtClient(config Config) *Client {
 	return &Client{Config: config}
+}
+func NewGwdtQimenClient(qimenConfig QimenConfig) *QimenClient {
+	return &QimenClient{Config: qimenConfig}
+}
+
+type QimenConfig struct {
+	QimenUrl       string `json:"qimen_url"`
+	QimenAppKey    string `json:"qimen_appkey"`
+	QimenAppSecret string `json:"qimen_appsecret"`
+	Sid            string `json:"sid"`           // 卖家账号
+	WdtAppKey      string `json:"wdt_appkey"`    // 旺店通旗舰版appkey
+	WdtAppSecret   string `json:"wdt_appsecret"` // 旺店通旗舰版appsecret
+	TargetAppkey   string `json:"target_appkey"`
+}
+
+func (c QimenConfig) GetSecret() (secret string, salt string, error error) {
+	parts := strings.Split(c.WdtAppSecret, ":")
+	if len(parts) != 2 {
+		return "", "", errors.New("invalid appsecret format")
+	}
+	secret = parts[0]
+	salt = parts[1]
+	return secret, salt, nil
+}
+
+type QimenClient struct {
+	Config QimenConfig
+}
+
+type QimenRequest = Request
+
+type QimenError struct {
+	RequestId    string
+	Code         string
+	Message      string
+	SubCode      string
+	SubMsg       string
+	RequestError error
+}
+
+type QimenResponse struct {
+	Request    *QimenRequest
+	Status     int64
+	Error      *QimenError
+	DateTime   string // 按照旺店通规则的请求时间戳
+	Sign       string
+	WdtSign    string // 按照旺店通规则的签名
+	Data       string
+	TotalCount int64
+}
+
+func (c QimenClient) getSign(timestamp string, dataWrapper []byte, pager *Pager, method string) (string, map[string]string, error) {
+	_, wdtSalt, err := c.Config.GetSecret()
+	if err != nil {
+		return "", nil, err
+	}
+	wdtSign, err := c.getWdtSign(timestamp, dataWrapper, pager, method)
+	if err != nil {
+		return "", nil, err
+	}
+	params := map[string]string{
+		"app_key":          c.Config.QimenAppKey,
+		"method":           method,
+		"format":           "json",
+		"v":                "2.0",
+		"sign_method":      "md5",
+		"target_app_key":   c.Config.TargetAppkey,
+		"wdt3_customer_id": c.Config.Sid,
+		"timestamp":        timestamp,
+		"datetime":         timestamp,
+		"wdt_salt":         wdtSalt,
+		"wdt_appkey":       c.Config.WdtAppKey,
+		"params":           string(dataWrapper),
+		"wdt_sign":         wdtSign,
+	}
+	if pager != nil {
+		if pager.CalcTotal {
+			params["calc_total"] = "1"
+		} else {
+			params["calc_total"] = "0"
+		}
+		params["page_no"] = strconv.Itoa(pager.PageNo)
+		params["page_size"] = strconv.Itoa(pager.PageSize)
+	}
+	keys := make([]string, 0, len(params))
+	for k := range params {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	connString := c.Config.QimenAppSecret
+	for _, k := range keys {
+		value := params[k]
+		connString += k + value
+	}
+	connString += c.Config.QimenAppSecret
+	sign := gwdtUtils.MD5(connString)
+	params["sign"] = sign
+	delete(params, "params")
+	return sign, params, nil
+}
+
+func (c QimenClient) getWdtSign(datetime string, dataWrapper []byte, pager *Pager, method string) (string, error) {
+	wdtSecret, wdtSalt, err := c.Config.GetSecret()
+	if err != nil {
+		return "", err
+	}
+	param := map[string]string{
+		"method":           method,
+		"datetime":         datetime,
+		"params":           string(dataWrapper),
+		"wdt3_customer_id": c.Config.Sid,
+		"wdt_salt":         wdtSalt,
+		"wdt_appkey":       c.Config.WdtAppKey,
+	}
+	if pager != nil {
+		if pager.CalcTotal {
+			param["calc_total"] = "1"
+		} else {
+			param["calc_total"] = "0"
+		}
+		param["page_no"] = strconv.Itoa(pager.PageNo)
+		param["page_size"] = strconv.Itoa(pager.PageSize)
+	}
+	keys := make([]string, 0, len(param))
+	for k := range param {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	connString := wdtSecret
+	for _, k := range keys {
+		connString += k + param[k]
+	}
+	connString += wdtSecret
+	return gwdtUtils.MD5(connString), nil
+}
+func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
+	res := QimenResponse{
+		Status:   -1,
+		Request:  request,
+		DateTime: time.Now().Format("2006-01-02 15:04:05"),
+	}
+	dataWrapper, err := json.Marshal([]interface{}{request.Params})
+	if err != nil {
+		res.Error = &QimenError{
+			Message:      "Failed to marshal params",
+			RequestError: err,
+		}
+		return &res
+	}
+	var params map[string]string
+	res.Sign, params, err = c.getSign(res.DateTime, dataWrapper, request.Pager, request.Method)
+	if err != nil {
+		res.Error = &QimenError{
+			RequestError: err,
+		}
+		return &res
+	}
+
+	resp, err := grequests.Post(c.Config.QimenUrl, &grequests.RequestOptions{Params: params, JSON: dataWrapper})
+	if err != nil {
+		res.Error = &QimenError{
+			RequestError: err,
+		}
+		return &res
+	} else if resp == nil {
+		res.Error = &QimenError{
+			RequestError: errors.New("request failed"),
+		}
+		return &res
+	}
+
+	var responseMap map[string]interface{}
+	err = json.Unmarshal([]byte(resp.String()), &responseMap)
+	if err != nil {
+		res.Error = &QimenError{
+			RequestError: err,
+		}
+		return &res
+	}
+
+	status := gjson.Get(resp.String(), "status")
+	if status.Int() != 0 {
+		res.Status = status.Int()
+		res.Error = &QimenError{
+			RequestId:    gjson.Get(resp.String(), "request_id").String(),
+			Code:         gjson.Get(resp.String(), "code").String(),
+			Message:      gjson.Get(resp.String(), "message").String(),
+			SubCode:      gjson.Get(resp.String(), "sub_code").String(),
+			SubMsg:       gjson.Get(resp.String(), "sub_msg").String(),
+			RequestError: nil,
+		}
+		return &res
+	}
+	res.Status = 0
+	res.Data = gjson.Get(resp.String(), "data").String()
+	if request.Pager != nil {
+		if request.Pager.CalcTotal {
+			res.TotalCount = gjson.Get(res.Data, "total_count").Int()
+		}
+	} else {
+		res.TotalCount = 0
+	}
+	return &res
 }
