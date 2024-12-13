@@ -217,14 +217,14 @@ type QimenResponse struct {
 	TotalCount int64
 }
 
-func (c QimenClient) getSign(timestamp string, dataWrapper []byte, pager *Pager, method string) (string, map[string]string, error) {
+func (c QimenClient) getSign(timestamp string, dataWrapper []byte, pager *Pager, method string) (string, string, map[string]string, error) {
 	_, wdtSalt, err := c.Config.GetSecret()
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
 	wdtSign, err := c.getWdtSign(timestamp, dataWrapper, pager, method)
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
 	params := map[string]string{
 		"app_key":          c.Config.QimenAppKey,
@@ -264,7 +264,7 @@ func (c QimenClient) getSign(timestamp string, dataWrapper []byte, pager *Pager,
 	sign := gwdtUtils.MD5(connString)
 	params["sign"] = sign
 	delete(params, "params")
-	return sign, params, nil
+	return sign, wdtSign, params, nil
 }
 
 func (c QimenClient) getWdtSign(datetime string, dataWrapper []byte, pager *Pager, method string) (string, error) {
@@ -316,7 +316,7 @@ func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
 		return &res
 	}
 	var params map[string]string
-	res.Sign, params, err = c.getSign(res.DateTime, dataWrapper, request.Pager, request.Method)
+	res.Sign, res.WdtSign, params, err = c.getSign(res.DateTime, dataWrapper, request.Pager, request.Method)
 	if err != nil {
 		res.Error = &QimenError{
 			RequestError: err,
