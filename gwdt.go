@@ -13,8 +13,21 @@ import (
 	"time"
 )
 
+type WdtContext struct {
+	Request     *Request
+	Response    *Response
+	middlewares []func(ctx *WdtContext)
+	no          int
+}
+
+func (c WdtContext) Next() {
+	c.no += 1
+	c.middlewares[c.no+1](&c)
+}
+
 type Client struct {
-	Config Config
+	Config      Config
+	middlewares []func(*WdtContext)
 }
 
 func (c Client) getSign(timestamp int64, dataWrapper []byte, pager *Pager, method string) (string, map[string]string, error) {
@@ -58,6 +71,79 @@ func (c Client) getSign(timestamp int64, dataWrapper []byte, pager *Pager, metho
 }
 
 func (c Client) Call(request *Request) *Response {
+	tryMiddlewares := append(c.middlewares, c.rq)
+	ctx := WdtContext{
+		Request:     request,
+		Response:    nil,
+		middlewares: tryMiddlewares,
+		no:          0,
+	}
+	c.middlewares[0](&ctx)
+	return ctx.Response
+}
+func (c Client) rq(ctx *WdtContext) {
+	request := ctx.Request
+	res := Response{
+		Request:   request,
+		Status:    -1,
+		Timestamp: time.Now().Unix() - 1325347200,
+	}
+	dataWrapper, err := json.Marshal([]interface{}{request.Params})
+	if request.Params == nil {
+		dataWrapper = []byte("[{}]")
+	}
+	if err != nil {
+		res.Error = &WdtError{
+			RequestError: err,
+		}
+		ctx.Response = &res
+		return
+	}
+	var params map[string]string
+	res.Sign, params, err = c.getSign(res.Timestamp, dataWrapper, request.Pager, request.Method)
+	if err != nil {
+		res.Error = &WdtError{
+			RequestError: err,
+		}
+		ctx.Response = &res
+		return
+	}
+	resp, err := grequests.Post(c.Config.Url, &grequests.RequestOptions{JSON: dataWrapper, Params: params})
+	if err != nil {
+		res.Error = &WdtError{
+			RequestError: err,
+		}
+		ctx.Response = &res
+		return
+	} else if resp == nil {
+		res.Error = &WdtError{
+			RequestError: errors.New("request failed"),
+		}
+		ctx.Response = &res
+		return
+	} else {
+		status := gjson.Get(resp.String(), "status")
+		if status.Int() != 0 {
+			res.Status = status.Int()
+			res.Error = &WdtError{
+				Message: gjson.Get(resp.String(), "message").String(),
+			}
+			ctx.Response = &res
+			return
+		}
+		res.Status = 0
+		res.Data = gjson.Get(resp.String(), "data").String()
+		if request.Pager != nil && request.Pager.CalcTotal {
+			res.TotalCount = gjson.Get(res.Data, "total_count").Int()
+		} else {
+			res.TotalCount = 0
+		}
+	}
+	ctx.Response = &res
+	return
+}
+func (c Client) CallWithoutMiddleware(request *Request) *Response {
+
 	res := Response{
 		Request:   request,
 		Status:    -1,
@@ -337,6 +423,9 @@ func (c QimenClient) getWdtSign(datetime string, dataWrapper []byte, pager *Page
 	}
 	connString += wdtSecret
 	return gwdtUtils.MD5(connString), nil
+}
+func (c Client) Use(middleware func(ctx *WdtContext)) {
+	c.middlewares = append(c.middlewares, middleware)
 }
 func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
 	res := QimenResponse{
