@@ -16,18 +16,19 @@ import (
 type WdtContext struct {
 	Request     *Request
 	Response    *Response
-	middlewares []func(ctx *WdtContext)
+	middlewares []*func(ctx *WdtContext)
 	no          int
 }
 
 func (c WdtContext) Next() {
 	c.no += 1
-	c.middlewares[c.no+1](&c)
+	nextFunc := *c.middlewares[c.no+1]
+	nextFunc(&c)
 }
 
 type Client struct {
 	Config      Config
-	middlewares []func(*WdtContext)
+	middlewares []*func(*WdtContext)
 }
 
 func (c Client) getSign(timestamp int64, dataWrapper []byte, pager *Pager, method string) (string, map[string]string, error) {
@@ -71,14 +72,16 @@ func (c Client) getSign(timestamp int64, dataWrapper []byte, pager *Pager, metho
 }
 
 func (c Client) Call(request *Request) *Response {
-	tryMiddlewares := append(c.middlewares, c.rq)
+	rq := c.rq
+	tryMiddlewares := append(c.middlewares, &rq)
 	ctx := WdtContext{
 		Request:     request,
 		Response:    nil,
 		middlewares: tryMiddlewares,
 		no:          0,
 	}
-	c.middlewares[0](&ctx)
+	nextFunc := *tryMiddlewares[0]
+	nextFunc(&ctx)
 	return ctx.Response
 }
 func (c Client) rq(ctx *WdtContext) {
@@ -425,7 +428,7 @@ func (c QimenClient) getWdtSign(datetime string, dataWrapper []byte, pager *Page
 	return gwdtUtils.MD5(connString), nil
 }
 func (c Client) Use(middleware func(ctx *WdtContext)) {
-	c.middlewares = append(c.middlewares, middleware)
+	c.middlewares = append(c.middlewares, &middleware)
 }
 func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
 	res := QimenResponse{
