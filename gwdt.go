@@ -13,25 +13,25 @@ import (
 	"time"
 )
 
-type WdtContext struct {
+type Context struct {
 	Request     *Request
 	Response    *Response
-	middlewares []*func(ctx *WdtContext)
+	middlewares []*func(ctx *Context)
 	no          int
 }
 
-func (c WdtContext) Next() {
+func (c *Context) Next() {
 	c.no += 1
-	nextFunc := *c.middlewares[c.no+1]
-	nextFunc(&c)
+	nextFunc := *c.middlewares[c.no]
+	nextFunc(c)
 }
 
 type Client struct {
 	Config      Config
-	middlewares []*func(*WdtContext)
+	middlewares []*func(*Context)
 }
 
-func (c Client) getSign(timestamp int64, dataWrapper []byte, pager *Pager, method string) (string, map[string]string, error) {
+func (c *Client) getSign(timestamp int64, dataWrapper []byte, pager *Pager, method string) (string, map[string]string, error) {
 	secret, salt, err := c.Config.GetSecret()
 	if err != nil {
 		return "", nil, err
@@ -71,10 +71,10 @@ func (c Client) getSign(timestamp int64, dataWrapper []byte, pager *Pager, metho
 	return sign, params, nil
 }
 
-func (c Client) Call(request *Request) *Response {
+func (c *Client) Call(request *Request) *Response {
 	rq := c.rq
 	tryMiddlewares := append(c.middlewares, &rq)
-	ctx := WdtContext{
+	ctx := Context{
 		Request:     request,
 		Response:    nil,
 		middlewares: tryMiddlewares,
@@ -84,7 +84,7 @@ func (c Client) Call(request *Request) *Response {
 	nextFunc(&ctx)
 	return ctx.Response
 }
-func (c Client) rq(ctx *WdtContext) {
+func (c *Client) rq(ctx *Context) {
 	request := ctx.Request
 	res := Response{
 		Request:   request,
@@ -145,60 +145,12 @@ func (c Client) rq(ctx *WdtContext) {
 	ctx.Response = &res
 	return
 }
-func (c Client) CallWithoutMiddleware(request *Request) *Response {
-
-	res := Response{
-		Request:   request,
-		Status:    -1,
-		Timestamp: time.Now().Unix() - 1325347200,
+func (c *Client) CallWithoutMiddleware(request *Request) *Response {
+	context := Context{
+		Request: request,
 	}
-	dataWrapper, err := json.Marshal([]interface{}{request.Params})
-	if request.Params == nil {
-		dataWrapper = []byte("[{}]")
-	}
-	if err != nil {
-		res.Error = &WdtError{
-			RequestError: err,
-		}
-		return &res
-	}
-	var params map[string]string
-	res.Sign, params, err = c.getSign(res.Timestamp, dataWrapper, request.Pager, request.Method)
-	if err != nil {
-		res.Error = &WdtError{
-			RequestError: err,
-		}
-		return &res
-	}
-	resp, err := grequests.Post(c.Config.Url, &grequests.RequestOptions{JSON: dataWrapper, Params: params})
-	if err != nil {
-		res.Error = &WdtError{
-			RequestError: err,
-		}
-		return &res
-	} else if resp == nil {
-		res.Error = &WdtError{
-			RequestError: errors.New("request failed"),
-		}
-		return &res
-	} else {
-		status := gjson.Get(resp.String(), "status")
-		if status.Int() != 0 {
-			res.Status = status.Int()
-			res.Error = &WdtError{
-				Message: gjson.Get(resp.String(), "message").String(),
-			}
-			return &res
-		}
-		res.Status = 0
-		res.Data = gjson.Get(resp.String(), "data").String()
-		if request.Pager != nil && request.Pager.CalcTotal {
-			res.TotalCount = gjson.Get(res.Data, "total_count").Int()
-		} else {
-			res.TotalCount = 0
-		}
-	}
-	return &res
+	c.rq(&context)
+	return context.Response
 }
 
 type Config struct {
@@ -209,7 +161,7 @@ type Config struct {
 	AppSecret string `json:"appsecret"` // 旺店通旗舰版appsecret
 }
 
-func (c Config) GetSecret() (secret string, salt string, error error) {
+func (c *Config) GetSecret() (secret string, salt string, error error) {
 	parts := strings.Split(c.AppSecret, ":")
 	if len(parts) != 2 {
 		return "", "", errors.New("invalid appsecret format")
@@ -244,13 +196,13 @@ type Response struct {
 	TotalCount int64
 }
 
-func (c Response) GetByte() []byte {
+func (c *Response) GetByte() []byte {
 	return []byte(c.Data)
 }
-func (c Response) Get(key string) string {
+func (c *Response) Get(key string) string {
 	return gjson.Get(c.Data, key).String()
 }
-func (c Response) HasMore() bool {
+func (c *Response) HasMore() bool {
 	if c.Request.Pager == nil || !c.Request.Pager.CalcTotal {
 		return false
 	}
@@ -274,7 +226,7 @@ type QimenConfig struct {
 	TargetAppkey   string `json:"target_appkey"`
 }
 
-func (c QimenConfig) GetSecret() (secret string, salt string, error error) {
+func (c *QimenConfig) GetSecret() (secret string, salt string, error error) {
 	parts := strings.Split(c.WdtAppSecret, ":")
 	if len(parts) != 2 {
 		return "", "", errors.New("invalid appsecret format")
@@ -284,13 +236,25 @@ func (c QimenConfig) GetSecret() (secret string, salt string, error error) {
 	return secret, salt, nil
 }
 
+type QimenContext struct {
+	Request     *QimenRequest
+	Response    *QimenResponse
+	middlewares []*func(ctx *QimenContext)
+	no          int
+}
+
 type QimenClient struct {
-	Config QimenConfig
+	Config      QimenConfig
+	middlewares []*func(*QimenContext)
+}
+
+func (c *QimenClient) Use(middleware func(ctx *QimenContext)) {
+	c.middlewares = append(c.middlewares, &middleware)
 }
 
 type QimenRequest = Request
 
-func (c QimenRequest) GetSortedParams() ([]byte, error) {
+func (c *QimenRequest) GetSortedParams() ([]byte, error) {
 	// 提取所有键
 	keys := make([]string, 0, len(c.Params))
 	for k := range c.Params {
@@ -332,20 +296,20 @@ type QimenResponse struct {
 	TotalCount int64
 }
 
-func (c QimenResponse) GetByte() []byte {
+func (c *QimenResponse) GetByte() []byte {
 	return []byte(c.Data)
 }
-func (c QimenResponse) Get(key string) string {
+func (c *QimenResponse) Get(key string) string {
 	return gjson.Get(c.Data, key).String()
 }
-func (c QimenResponse) HasMore() bool {
+func (c *QimenResponse) HasMore() bool {
 	if c.Request.Pager == nil || !c.Request.Pager.CalcTotal {
 		return false
 	}
 	return c.TotalCount > int64((c.Request.Pager.PageNo)*c.Request.Pager.PageSize)
 }
 
-func (c QimenClient) getSign(timestamp string, dataWrapper []byte, pager *Pager, method string) (string, string, map[string]string, error) {
+func (c *QimenClient) getSign(timestamp string, dataWrapper []byte, pager *Pager, method string) (string, string, map[string]string, error) {
 	_, wdtSalt, err := c.Config.GetSecret()
 	if err != nil {
 		return "", "", nil, err
@@ -393,7 +357,7 @@ func (c QimenClient) getSign(timestamp string, dataWrapper []byte, pager *Pager,
 	return sign, wdtSign, params, nil
 }
 
-func (c QimenClient) getWdtSign(datetime string, dataWrapper []byte, pager *Pager, method string) (string, error) {
+func (c *QimenClient) getWdtSign(datetime string, dataWrapper []byte, pager *Pager, method string) (string, error) {
 	wdtSecret, wdtSalt, err := c.Config.GetSecret()
 	if err != nil {
 		return "", err
@@ -427,10 +391,34 @@ func (c QimenClient) getWdtSign(datetime string, dataWrapper []byte, pager *Page
 	connString += wdtSecret
 	return gwdtUtils.MD5(connString), nil
 }
-func (c Client) Use(middleware func(ctx *WdtContext)) {
+func (c *Client) Use(middleware func(ctx *Context)) {
 	c.middlewares = append(c.middlewares, &middleware)
 }
-func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
+func (c *QimenClient) Call(request *QimenRequest) *QimenResponse {
+	rq := c.rq
+	tryMiddlewares := append(c.middlewares, &rq)
+	ctx := QimenContext{
+		Request:     request,
+		Response:    nil,
+		middlewares: tryMiddlewares,
+		no:          0,
+	}
+	nextFunc := *tryMiddlewares[0]
+	nextFunc(&ctx)
+	return ctx.Response
+}
+
+func (c *QimenClient) CallWithoutMiddleware(request *QimenRequest) *QimenResponse {
+	rq := c.rq
+	ctx := QimenContext{
+		Request:  request,
+		Response: nil,
+	}
+	rq(&ctx)
+	return ctx.Response
+}
+func (c *QimenClient) rq(ctx *QimenContext) {
+	request := ctx.Request
 	res := QimenResponse{
 		Status:   -1,
 		Request:  request,
@@ -447,7 +435,8 @@ func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
 				Message:      "Failed to marshal params",
 				RequestError: err,
 			}
-			return &res
+			ctx.Response = &res
+			return
 		}
 	}
 	var params map[string]string
@@ -456,7 +445,8 @@ func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
 		res.Error = &QimenError{
 			RequestError: err,
 		}
-		return &res
+		ctx.Response = &res
+		return
 	}
 
 	resp, err := grequests.Get(c.Config.QimenUrl, &grequests.RequestOptions{Params: params})
@@ -464,12 +454,14 @@ func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
 		res.Error = &QimenError{
 			RequestError: err,
 		}
-		return &res
+		ctx.Response = &res
+		return
 	} else if resp == nil {
 		res.Error = &QimenError{
 			RequestError: errors.New("request failed"),
 		}
-		return &res
+		ctx.Response = &res
+		return
 	}
 
 	var responseMap map[string]interface{}
@@ -478,7 +470,8 @@ func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
 		res.Error = &QimenError{
 			RequestError: err,
 		}
-		return &res
+		ctx.Response = &res
+		return
 	}
 
 	flag := gjson.Get(resp.String(), "response.flag").String()
@@ -493,7 +486,8 @@ func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
 			SubMsg:       gjson.Get(resp.String(), "response.sub_message").String(),
 			RequestError: nil,
 		}
-		return &res
+		ctx.Response = &res
+		return
 	}
 	res.Status = 0
 	res.Data = gjson.Get(resp.String(), "response.data").String()
@@ -504,5 +498,6 @@ func (c QimenClient) Call(request *QimenRequest) *QimenResponse {
 	} else {
 		res.TotalCount = 0
 	}
-	return &res
+	ctx.Response = &res
+	return
 }
