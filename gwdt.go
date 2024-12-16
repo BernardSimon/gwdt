@@ -16,6 +16,7 @@ import (
 type Context struct {
 	Request     *Request
 	Response    *Response
+	Client      *Client
 	middlewares []*func(ctx *Context)
 	no          int
 }
@@ -77,6 +78,7 @@ func (c *Client) Call(request *Request) *Response {
 	ctx := Context{
 		Request:     request,
 		Response:    nil,
+		Client:      c,
 		middlewares: tryMiddlewares,
 		no:          0,
 	}
@@ -239,6 +241,7 @@ func (c *QimenConfig) GetSecret() (secret string, salt string, error error) {
 type QimenContext struct {
 	Request     *QimenRequest
 	Response    *QimenResponse
+	Client      *QimenClient
 	middlewares []*func(ctx *QimenContext)
 	no          int
 }
@@ -400,6 +403,7 @@ func (c *QimenClient) Call(request *QimenRequest) *QimenResponse {
 	ctx := QimenContext{
 		Request:     request,
 		Response:    nil,
+		Client:      c,
 		middlewares: tryMiddlewares,
 		no:          0,
 	}

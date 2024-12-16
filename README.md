@@ -78,7 +78,8 @@
 1. 中间件使用方法：gwdt的Client和QimenClient都支持使用中间件，需要实例化一个Client/QimenClient，然后使用Use方法定义一个中间件，中间件方法需要接收一个Context参数。
 2. Context包含请求参数、返回结果、签名、时间戳等，方便开发者进行日志记录、限流等辅助业务逻辑，具体为Request和Response两个对象，调用Context.Next()方法后可以查看到Response的数据。
 3. 请注意奇门调用需要使用QimenContext，两者不通用。
-4. 请参考以下代码：
+4. 请注意：当你使用中间件时，必须在中间件方法中调用Next()方法，否则后续的中间件和请求业务方法将不会被调用！非常重要！！
+5. 请参考以下代码：
 ####
     // 定义一个中间件
     func wdtLog(c *gwdt.Context) {
