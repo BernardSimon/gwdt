@@ -39,7 +39,7 @@
     4.请求的总条数 Response.TotalCount，请注意只有当分页请求且CalcTotal为true时，才返回该值
     5.GetByte方法，将返回结果转换为[]byte
     6.HasMore方法，判断是否还有更多数据
-    请参考WdtError分析请求错误，其中Message为借口返回错误，RequestError为调用错误
+    请参考WdtError分析请求错误，其中Message为接口返回错误，RequestError为调用错误
 ## 2.奇门自定义参考示例代码
     // 实例化一个奇门客户端
 	qimenClient := gwdt.NewGwdtQimenClient(gwdt.QimenConfig{
@@ -65,6 +65,7 @@
 	if qimenResponse.Error != nil {
 		panic(qimenResponse.Error)
 	}
+    //结果获取与直连方式相同
 	println(qimenResponse.Data)
     请参考QimenError类型，分析请求错误
 #### 奇门接口官方文档地址：https://open.wangdian.cn/qjb/open/guide?path=qjb_guide_qm_customize
