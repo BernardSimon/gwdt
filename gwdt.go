@@ -323,27 +323,27 @@ func (c *QimenResponse) HasMore() bool {
 }
 
 // getSortedParams 获取排序后的请求参数
-//func (c *QimenRequest) getSortedParams() ([]byte, error) {
-//	// 提取所有键
-//	keys := make([]string, 0, len(c.Params))
-//	sort.Strings(keys)
-//	for k := range c.Params {
-//		keys = append(keys, k)
-//	}
-//	// 对键进行排序
-//	sort.Strings(keys)
-//	// 按照排序后的键遍历 map
-//	sortedParams := make(map[string]interface{})
-//	for _, k := range keys {
-//		sortedParams[k] = c.Params[k]
-//	}
-//	// 将排序后的 map 序列化为 JSON 字符串
-//	jsonData, err := json.Marshal(sortedParams)
-//	if err != nil {
-//		return []byte(""), err
-//	}
-//	return jsonData, nil
-//}
+func (c *QimenRequest) getSortedParams() ([]byte, error) {
+	// 提取所有键
+	keys := make([]string, 0, len(c.Params))
+	sort.Strings(keys)
+	for k := range c.Params {
+		keys = append(keys, k)
+	}
+	// 对键进行排序
+	sort.Strings(keys)
+	// 按照排序后的键遍历 map
+	sortedParams := make(map[string]interface{})
+	for _, k := range keys {
+		sortedParams[k] = c.Params[k]
+	}
+	// 将排序后的 map 序列化为 JSON 字符串
+	jsonData, err := json.Marshal(sortedParams)
+	if err != nil {
+		return []byte(""), err
+	}
+	return jsonData, nil
+}
 
 // QimenContext 奇门上下文管理器
 type QimenContext struct {
@@ -482,12 +482,9 @@ func (c *QimenClient) rq(ctx *QimenContext) {
 	var err error
 	var dataWrapper []byte
 	if request.Params == nil {
-		dataWrapper = []byte("[{}]")
+		dataWrapper = []byte("{}")
 	} else {
-		dataWrapperBody := []interface{}{
-			request.Params,
-		}
-		dataWrapper, err = json.Marshal(dataWrapperBody)
+		dataWrapper, err = request.getSortedParams()
 		if err != nil {
 			res.Error = &QimenError{
 				Message:      "Failed to marshal params",
