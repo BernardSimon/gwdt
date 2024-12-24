@@ -384,6 +384,9 @@ func (c *QimenClient) getSign(timestamp string, dataWrapper []byte, pager *Pager
 		"params":           string(dataWrapper),
 		"wdt_sign":         wdtSign,
 	}
+	if params["params"] == "{}" {
+		delete(params, "params")
+	}
 	if pager != nil {
 		if pager.CalcTotal {
 			params["calc_total"] = "1"
@@ -405,9 +408,7 @@ func (c *QimenClient) getSign(timestamp string, dataWrapper []byte, pager *Pager
 	connString += c.Config.QimenAppSecret
 	sign := strings.ToUpper(gwdtUtils.MD5(connString))
 	params["sign"] = sign
-	if params["params"] == "{}" {
-		delete(params, "params")
-	}
+
 	return sign, wdtSign, params, nil
 }
 
