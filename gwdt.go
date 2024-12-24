@@ -482,9 +482,12 @@ func (c *QimenClient) rq(ctx *QimenContext) {
 	var err error
 	var dataWrapper []byte
 	if request.Params == nil {
-		dataWrapper = []byte("{}")
+		dataWrapper = []byte("[{}]")
 	} else {
-		dataWrapper, err = request.getSortedParams()
+		dataWrapperBody := []interface{}{
+			request.Params,
+		}
+		dataWrapper, err = json.Marshal(dataWrapperBody)
 		if err != nil {
 			res.Error = &QimenError{
 				Message:      "Failed to marshal params",
