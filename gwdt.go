@@ -353,6 +353,13 @@ type QimenContext struct {
 	no          int
 }
 
+// Next 奇门上下文跳转
+func (c *QimenContext) Next() {
+	c.no += 1
+	nextFunc := *c.middlewares[c.no]
+	nextFunc(c)
+}
+
 // Use 添加奇门中间件
 func (c *QimenClient) Use(middleware func(ctx *QimenContext)) {
 	c.middlewares = append(c.middlewares, &middleware)
