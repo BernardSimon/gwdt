@@ -326,7 +326,6 @@ func (c *QimenResponse) HasMore() bool {
 func (c *QimenRequest) getSortedParams() ([]byte, error) {
 	// 提取所有键
 	keys := make([]string, 0, len(c.Params))
-	sort.Strings(keys)
 	for k := range c.Params {
 		keys = append(keys, k)
 	}
