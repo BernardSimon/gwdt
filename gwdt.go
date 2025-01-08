@@ -555,7 +555,7 @@ func (c *QimenClient) rq(ctx *QimenContext) {
 	res.Data = gjson.Get(resp.String(), "response.data").String()
 	if request.Pager != nil {
 		if request.Pager.CalcTotal {
-			res.TotalCount = gjson.Get(res.Data, "response.total_count").Int()
+			res.TotalCount = gjson.Get(res.Data, "total_count").Int()
 		}
 	} else {
 		res.TotalCount = 0
