@@ -7,6 +7,7 @@ import (
 	"github.com/BernardSimon/gwdt/gwdtUtils"
 	"github.com/levigross/grequests"
 	"github.com/tidwall/gjson"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -50,7 +51,7 @@ type Pager struct {
 // Request 请求参数
 type Request struct {
 	Method string
-	Params map[string]interface{}
+	Params interface{}
 	Pager  *Pager
 }
 
@@ -190,17 +191,37 @@ func (c *Client) rq(ctx *Context) {
 		Status:    -1,
 		Timestamp: time.Now().Unix() - 1325347200,
 	}
-	dataWrapper, err := json.Marshal([]interface{}{request.Params})
+	dataWrapper := []byte("")
 	if request.Params == nil {
 		dataWrapper = []byte("[{}]")
-	}
-	if err != nil {
+	} else if reflect.TypeOf(request.Params) == reflect.TypeOf(map[string]interface{}{}) {
+		var err error
+		dataWrapper, err = json.Marshal([]interface{}{request.Params})
+		if err != nil {
+			res.Error = &WdtError{
+				RequestError: err,
+			}
+			ctx.Response = &res
+			return
+		}
+	} else if reflect.TypeOf(request.Params) == reflect.TypeOf([]interface{}{}) {
+		var err error
+		dataWrapper, err = json.Marshal(request.Params)
+		if err != nil {
+			res.Error = &WdtError{
+				RequestError: err,
+			}
+			ctx.Response = &res
+			return
+		}
+	} else {
 		res.Error = &WdtError{
-			RequestError: err,
+			RequestError: errors.New("invalid params type"),
 		}
 		ctx.Response = &res
 		return
 	}
+	var err error
 	var params map[string]string
 	res.Sign, params, err = c.getSign(res.Timestamp, dataWrapper, request.Pager, request.Method)
 	if err != nil {
@@ -325,8 +346,9 @@ func (c *QimenResponse) HasMore() bool {
 // getSortedParams 获取排序后的请求参数
 func (c *QimenRequest) getSortedParams() ([]byte, error) {
 	// 提取所有键
-	keys := make([]string, 0, len(c.Params))
-	for k := range c.Params {
+	mapParams := c.Params.(map[string]interface{})
+	keys := make([]string, 0, len(mapParams))
+	for k := range mapParams {
 		keys = append(keys, k)
 	}
 	// 对键进行排序
@@ -334,7 +356,7 @@ func (c *QimenRequest) getSortedParams() ([]byte, error) {
 	// 按照排序后的键遍历 map
 	sortedParams := make(map[string]interface{})
 	for _, k := range keys {
-		sortedParams[k] = c.Params[k]
+		sortedParams[k] = mapParams[k]
 	}
 	// 将排序后的 map 序列化为 JSON 字符串
 	jsonData, err := json.Marshal(sortedParams)
@@ -491,15 +513,27 @@ func (c *QimenClient) rq(ctx *QimenContext) {
 	if request.Params == nil {
 		dataWrapper = []byte("{}")
 	} else {
-		dataWrapper, err = request.getSortedParams()
-		if err != nil {
+		if reflect.TypeOf(request.Params) == reflect.TypeOf(map[string]interface{}{}) {
+			dataWrapper, err = request.getSortedParams()
+			if err != nil {
+				res.Error = &QimenError{
+					Message:      "Failed to marshal params",
+					RequestError: err,
+				}
+				ctx.Response = &res
+				return
+			}
+		} else if reflect.TypeOf(request.Params) == reflect.TypeOf([]interface{}{}) {
+			dataWrapper, _ = json.Marshal(request.Params.([]interface{}))
+		} else {
 			res.Error = &QimenError{
 				Message:      "Failed to marshal params",
-				RequestError: err,
+				RequestError: errors.New("params type error"),
 			}
 			ctx.Response = &res
 			return
 		}
+
 	}
 	var params map[string]string
 	res.Sign, res.WdtSign, params, err = c.getSign(res.DateTime, dataWrapper, request.Pager, request.Method)
