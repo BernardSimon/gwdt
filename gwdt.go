@@ -413,6 +413,11 @@ func (c *QimenClient) getSign(timestamp string, dataWrapper []byte, pager *Pager
 		"wdt_sign":         wdtSign,
 	}
 	if pager != nil {
+		if pager.CalcTotal {
+			params["calc_total"] = "1"
+		} else {
+			params["calc_total"] = "0"
+		}
 		params["pager"] = fmt.Sprintf(`{"page_no":%d,"page_size":%d}`, pager.PageNo, pager.PageSize)
 	}
 	keys := make([]string, 0, len(params))
@@ -447,7 +452,13 @@ func (c *QimenClient) getWdtSign(datetime string, dataWrapper []byte, pager *Pag
 		"wdt_appkey":       c.Config.WdtAppKey,
 	}
 	if pager != nil {
+		if pager.CalcTotal {
+			params["calc_total"] = "1"
+		} else {
+			params["calc_total"] = "0"
+		}
 		params["pager"] = fmt.Sprintf(`{"page_no":%d,"page_size":%d}`, pager.PageNo, pager.PageSize)
+
 	}
 	keys := make([]string, 0, len(params))
 	for k := range params {
