@@ -214,6 +214,16 @@ func (c *Client) rq(ctx *Context) {
 			ctx.Response = &res
 			return
 		}
+	} else if reflect.TypeOf(request.Params) == reflect.TypeOf([]map[string]interface{}{}) {
+		var err error
+		dataWrapper, err = json.Marshal(request.Params)
+		if err != nil {
+			res.Error = &WdtError{
+				RequestError: err,
+			}
+			ctx.Response = &res
+			return
+		}
 	} else {
 		res.Error = &WdtError{
 			RequestError: errors.New("invalid params type"),
