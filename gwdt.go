@@ -392,14 +392,13 @@ type QimenRequest = Request
 
 // QimenResponse 奇门响应
 type QimenResponse struct {
-	Request    *QimenRequest // 原始请求
-	Status     int64         // 状态码，-1为请求失败，0为请求成功，1为返回错误
-	Error      *QimenError   // 返回错误
-	DateTime   string        // 按照旺店通规则的请求时间戳
-	Sign       string        // 奇门签名
-	WdtSign    string        // 按照旺店通规则的签名
-	Data       string        // 返回数据json字符串
-	TotalCount int64         // 分页查询返回的总记录数，仅当分页获取总数时返回
+	Request  *QimenRequest // 原始请求
+	Status   int64         // 状态码，-1为请求失败，0为请求成功，1为返回错误
+	Error    *QimenError   // 返回错误
+	DateTime string        // 按照旺店通规则的请求时间戳
+	Sign     string        // 奇门签名
+	WdtSign  string        // 按照旺店通规则的签名
+	Data     string        // 返回数据json字符串
 }
 type QimenError struct {
 	Flag         string // 奇门返回的错误标识
@@ -448,12 +447,13 @@ func (c *QimenResponse) Get(key string) string {
 }
 
 // HasMore 是否还有更多数据，仅分页且获取总数时返回
-func (c *QimenResponse) HasMore() bool {
-	if c.Request.Pager == nil || !c.Request.Pager.CalcTotal {
-		return false
-	}
-	return c.TotalCount > int64((c.Request.Pager.PageNo)*c.Request.Pager.PageSize)
-}
+// 奇门无法获取条目数量,请在下一层获取
+//func (c *QimenResponse) HasMore() bool {
+//	if c.Request.Pager == nil || !c.Request.Pager.CalcTotal {
+//		return false
+//	}
+//	return c.TotalCount > int64((c.Request.Pager.PageNo)*c.Request.Pager.PageSize)
+//}
 
 // getSortedParams 获取排序后的请求参数
 func (c *QimenRequest) getSortedParams() ([]byte, error) {
@@ -726,25 +726,6 @@ func (c *QimenClient) rq(ctx *QimenContext) {
 	if ok {
 		dataBytes, _ := json.Marshal(dataVal)
 		res.Data = string(dataBytes)
-	}
-
-	if request.Pager != nil && request.Pager.CalcTotal {
-		var dataMap map[string]interface{}
-		err = json.Unmarshal([]byte(res.Data), &dataMap)
-		if err != nil {
-			res.Error = &QimenError{
-				RequestError: err,
-			}
-			ctx.Response = &res
-			return
-		}
-		if totalCountVal, ok := dataMap["total_count"].(float64); ok {
-			res.TotalCount = int64(totalCountVal)
-		} else {
-			res.TotalCount = 0
-		}
-	} else {
-		res.TotalCount = 0
 	}
 	ctx.Response = &res
 	return
