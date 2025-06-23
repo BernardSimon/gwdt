@@ -142,7 +142,7 @@ type Client struct {
 // NewGwdtClient 旺店通直连客户端构建函数
 func NewGwdtClient(config Config) *Client {
 	c := &Client{Config: config}
-	c.Use(c.rq)
+	//c.Use(c.rq)
 	return c
 }
 
@@ -197,14 +197,15 @@ func (c *Client) Call(request *Request) *Response {
 	ctx := Context{
 		Request:     request,
 		Response:    nil,
-		Client:      c,
 		middlewares: c.middlewares,
+		Client:      c,
 		no:          0,
 	}
 	if len(c.middlewares) > 0 {
 		nextFunc := *c.middlewares[0]
 		nextFunc(&ctx)
 	}
+	c.rq(&ctx)
 	return ctx.Response
 }
 
@@ -383,7 +384,6 @@ type QimenClient struct {
 // NewGwdtQimenClient 奇门客户端构建函数
 func NewGwdtQimenClient(qimenConfig QimenConfig) *QimenClient {
 	c := &QimenClient{Config: qimenConfig}
-	c.Use(c.rq)
 	return c
 }
 
@@ -603,6 +603,7 @@ func (c *QimenClient) Call(request *QimenRequest) *QimenResponse {
 		nextFunc := *c.middlewares[0]
 		nextFunc(&ctx)
 	}
+	c.rq(&ctx)
 	return ctx.Response
 }
 
