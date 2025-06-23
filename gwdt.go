@@ -100,7 +100,7 @@ type Context struct {
 	Request     *Request
 	Response    *Response
 	Client      *Client
-	middlewares []*func(ctx *Context)
+	middlewares []func(ctx *Context)
 	no          int
 }
 
@@ -108,7 +108,7 @@ type Context struct {
 func (c *Context) Next() {
 	c.no += 1
 	if c.no < len(c.middlewares) {
-		nextFunc := *c.middlewares[c.no]
+		nextFunc := c.middlewares[c.no]
 		nextFunc(c)
 	}
 }
@@ -136,19 +136,18 @@ func (c *Config) getSecret() (secret string, salt string, error error) {
 // Client 旺店通直连客户端
 type Client struct {
 	Config      Config
-	middlewares []*func(*Context)
+	middlewares []func(*Context)
 }
 
 // NewGwdtClient 旺店通直连客户端构建函数
 func NewGwdtClient(config Config) *Client {
 	c := &Client{Config: config}
-	//c.Use(c.rq)
 	return c
 }
 
 // Use 使用旺店通中间件
 func (c *Client) Use(middleware func(ctx *Context)) {
-	c.middlewares = append(c.middlewares, &middleware)
+	c.middlewares = append(c.middlewares, middleware)
 }
 
 // getSign 获取旺店通请求签名
@@ -197,15 +196,11 @@ func (c *Client) Call(request *Request) *Response {
 	ctx := Context{
 		Request:     request,
 		Response:    nil,
-		middlewares: c.middlewares,
+		middlewares: append(c.middlewares, c.rq),
 		Client:      c,
 		no:          0,
 	}
-	if len(c.middlewares) > 0 {
-		nextFunc := *c.middlewares[0]
-		nextFunc(&ctx)
-	}
-	c.rq(&ctx)
+	c.middlewares[0](&ctx)
 	return ctx.Response
 }
 
@@ -378,7 +373,7 @@ func (c *QimenConfig) getSecret() (secret string, salt string, error error) {
 // QimenClient 奇门客户端
 type QimenClient struct {
 	Config      QimenConfig
-	middlewares []*func(*QimenContext)
+	middlewares []func(*QimenContext)
 }
 
 // NewGwdtQimenClient 奇门客户端构建函数
@@ -486,7 +481,7 @@ type QimenContext struct {
 	Request     *QimenRequest
 	Response    *QimenResponse
 	Client      *QimenClient
-	middlewares []*func(ctx *QimenContext)
+	middlewares []func(ctx *QimenContext)
 	no          int
 }
 
@@ -494,14 +489,14 @@ type QimenContext struct {
 func (c *QimenContext) Next() {
 	c.no += 1
 	if c.no < len(c.middlewares) {
-		nextFunc := *c.middlewares[c.no]
+		nextFunc := c.middlewares[c.no]
 		nextFunc(c)
 	}
 }
 
 // Use 添加奇门中间件
 func (c *QimenClient) Use(middleware func(ctx *QimenContext)) {
-	c.middlewares = append(c.middlewares, &middleware)
+	c.middlewares = append(c.middlewares, middleware)
 }
 
 // getSign 获取奇门签名
@@ -596,14 +591,10 @@ func (c *QimenClient) Call(request *QimenRequest) *QimenResponse {
 		Request:     request,
 		Response:    nil,
 		Client:      c,
-		middlewares: c.middlewares,
+		middlewares: append(c.middlewares, c.rq),
 		no:          0,
 	}
-	if len(c.middlewares) > 0 {
-		nextFunc := *c.middlewares[0]
-		nextFunc(&ctx)
-	}
-	c.rq(&ctx)
+	c.middlewares[0](&ctx)
 	return ctx.Response
 }
 
